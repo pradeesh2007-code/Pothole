@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nagar Drishti | Bus Pothole Reporting</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f6f8;color:#1f2937}header{background:#123b32;color:white;padding:18px}header h1{margin:0;font-size:25px}header p{margin:6px 0 0;color:#d5e9e2;font-size:14px}.wrap{max-width:1150px;margin:auto;padding:16px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}.stat,.panel,.report{background:white;border:1px solid #dce3e8;border-radius:10px;padding:14px}.stat b{display:block;color:#176b53;font-size:25px}.stat span,.muted,.note{color:#64748b;font-size:13px}.layout{display:grid;grid-template-columns:1fr 1fr;gap:14px}.panel h2{font-size:18px;margin:0 0 10px}.videoBox{background:#111827;border-radius:8px;overflow:hidden;min-height:190px;display:flex;align-items:center;justify-content:center;color:#e5e7eb}video,canvas.preview{width:100%;max-height:340px;object-fit:cover;display:block}.placeholder{text-align:center;padding:30px}.controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}button,input,select,textarea{font:inherit;padding:9px;border:1px solid #cbd5e1;border-radius:6px;background:white;max-width:100%}button{background:#176b53;color:white;border:0;cursor:pointer}button.secondary{background:#e8f0ed;color:#164e3e}button:disabled{opacity:.55;cursor:default}.fieldgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.fieldgrid input,.fieldgrid select,.fieldgrid textarea{width:100%}.report{margin-top:10px;padding:10px}.report img{width:100%;max-height:230px;object-fit:cover;border-radius:7px;background:#e2e8f0}.report h3{font-size:16px;margin:8px 0}.tag{display:inline-block;background:#fee2e2;color:#991b1b;border-radius:5px;padding:3px 7px;font-size:11px;font-weight:bold}.details{font-size:13px;line-height:1.7;color:#475569;overflow-wrap:anywhere}.pill{display:inline-block;background:#dbeafe;color:#1d4ed8;border-radius:5px;padding:3px 7px;font-size:11px}.note{line-height:1.5;margin:10px 0 0}.status{font-size:13px;margin-top:8px;color:#166534}.empty{font-size:14px;color:#64748b;padding:12px}.section{margin-top:14px}.dot{display:inline-block;width:9px;height:9px;background:#e11d48;border-radius:50%;margin-right:6px}@media(max-width:760px){.layout{grid-template-columns:1fr}.wrap{padding:10px}.stats{gap:6px}.stat{padding:9px}.stat b{font-size:21px}.fieldgrid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1><span class="dot"></span>Nagar Drishti</h1><p>Bus-mounted camera + public pothole reporting · Student prototype</p></header>
+<main class="wrap">
+<div class="stats">
+ <div class="stat"><b id="count">0</b><span>Total reports</span></div>
+ <div class="stat"><b id="autoCount">0</b><span>Bus camera reports</span></div>
+ <div class="stat"><b id="pendingCount">0</b><span>Waiting for office review</span></div>
+</div>
+<div class="layout">
+<section class="panel">
+<h2>Bus camera</h2>
+<div class="videoBox" id="videoBox"><div class="placeholder" id="placeholder">Camera preview will appear here.<br><small>Allow camera access when your browser asks.</small></div><video id="video" autoplay muted playsinline hidden></video></div>
+<div class="controls"><button id="startCam">Start camera</button><button id="stopCam" class="secondary" disabled>Stop camera</button><button id="detect">Simulate pothole detected</button></div>
+<p class="note">Demo behaviour: press “Simulate pothole detected” to capture a frame from the camera and create an alert. Automatic AI detection is not connected yet; a trained pothole-detection model is needed for real automatic detection.</p>
+</section>
+<section class="panel">
+<h2>Office live alerts</h2>
+<p class="muted">Newest reports first · review before forwarding to road authority</p>
+<div id="reports"><div class="empty">No reports yet. Start the camera or submit a public report.</div></div>
+</section>
+</div>
+<section class="panel section">
+<h2>Bus and location details</h2>
+<div class="fieldgrid">
+<input id="bus" value="500D" placeholder="Bus number (e.g. 500D)">
+<input id="road" placeholder="Road name (e.g. Hosur Road)">
+<input id="location" placeholder="Nearby landmark / location">
+<input id="coords" placeholder="GPS coordinates (optional)">
+<select id="severity"><option>Needs review</option><option>Low</option><option>Medium</option><option>High</option></select>
+</div>
+<p class="note">For a real bus installation, connect a GPS device to fill the actual coordinates automatically. The road name can then be looked up from the coordinates.</p>
+</section>
+<section class="panel section">
+<h2>Public pothole report</h2>
+<p class="muted">A passenger or member of the public can submit a photo to the same office inbox.</p>
+<div class="fieldgrid">
+<input id="publicName" placeholder="Name (optional)">
+<input id="publicRoad" placeholder="Road name">
+<input id="publicLocation" placeholder="Location / landmark">
+<input id="publicCoords" placeholder="GPS coordinates (if known)">
+<input id="publicPhoto" type="file" accept="image/*">
+</div>
+<div class="controls"><button id="submitPublic">Submit public report</button></div>
+<p class="note">This standalone prototype keeps reports in the current browser session only. It does not send data to an actual head office. A server/API and office login are needed for shared reports.</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let stream=null, reports=[], lastFrame='';
+function captureFrame(){
+ const v=$('video');
+ if(stream && v.videoWidth){
+  const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;
+  c.getContext('2d').drawImage(v,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.82);
+ }
+ return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400"><rect width="100%" height="100%" fill="#d1d5db"/><path d="M0 90 L800 40 L800 400 L0 400Z" fill="#4b5563"/><path d="M220 235 C270 185 360 190 405 225 C452 260 430 306 365 315 C300 328 215 293 220 235Z" fill="#111318"/><text x="28" y="42" font-family="Arial" font-size="22" fill="#111827">DEMO IMAGE — NO CAMERA FRAME</text></svg>')}`;
+}
+function detailsFromBus(){return {bus:$('bus').value.trim()||'Bus number not entered',road:$('road').value.trim()||'Road name not entered',location:$('location').value.trim()||'Location not entered',coords:$('coords').value.trim()||'GPS not connected',severity:$('severity').value}}
+function addReport(r){reports.unshift({...r,id:Date.now()+Math.random(),time:new Date().toLocaleString(),status:'Waiting for office review'});render()}
+function render(){
+ $('count').textContent=reports.length;$('autoCount').textContent=reports.filter(r=>r.source==='Bus camera').length;$('pendingCount').textContent=reports.filter(r=>r.status==='Waiting for office review').length;
+ const root=$('reports');root.innerHTML='';
+ if(!reports.length){root.innerHTML='<div class="empty">No reports yet. Start the camera or submit a public report.</div>';return}
+ reports.forEach(r=>{
+  const card=document.createElement('article');card.className='report';
+  const img=document.createElement('img');img.src=r.photo;img.alt='Photo attached to pothole report';
+  const h=document.createElement('h3');h.textContent='Pothole report · '+r.source;
+  const tag=document.createElement('span');tag.className='tag';tag.textContent=r.severity;
+  const source=document.createElement('span');source.className='pill';source.style.marginLeft='6px';source.textContent=r.status;
+  const d=document.createElement('div');d.className='details';d.textContent='Bus: '+r.bus+' | Road: '+r.road+' | Location: '+r.location+' | GPS: '+r.coords+' | Time: '+r.time+(r.reporter?' | Submitted by: '+r.reporter:'');
+  const b=document.createElement('button');b.className='secondary';b.style.marginTop='8px';b.textContent=r.status==='Reviewed by office'?'Reviewed':'Mark reviewed by office';
+  b.onclick=()=>{r.status='Reviewed by office';render()};card.append(img,h,tag,source,d,b);root.append(card);
+ });
+}
+$('startCam').onclick=async()=>{
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){alert('Camera access is not available here. Open this file in a browser that supports camera access, usually through localhost or HTTPS.');return}
+ try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});$('video').srcObject=stream;$('video').hidden=false;$('placeholder').hidden=true;$('startCam').disabled=true;$('stopCam').disabled=false;$('videoBox').style.display='block'}
+ catch(e){alert('Camera could not start. Check camera permission, then try again.');}
+};
+$('stopCam').onclick=()=>{if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$('video').srcObject=null;$('video').hidden=true;$('placeholder').hidden=false;$('startCam').disabled=false;$('stopCam').disabled=true};
+$('detect').onclick=()=>{const d=detailsFromBus();addReport({...d,photo:captureFrame(),source:'Bus camera'});};
+$('submitPublic').onclick=()=>{
+ const file=$('publicPhoto').files[0],road=$('publicRoad').value.trim(),location=$('publicLocation').value.trim();
+ if(!file||!road||!location){alert('Please add a photo, road name and location.');return}
+ if(!file.type.startsWith('image/')){alert('Please choose an image file.');return}
+ const reader=new FileReader();reader.onload=()=>{addReport({bus:'Public report',road,location,coords:$('publicCoords').value.trim()||'Not provided',severity:'Needs review',photo:reader.result,source:'Public',reporter:$('publicName').value.trim()||'Anonymous'});$('publicPhoto').value='';$('publicRoad').value='';$('publicLocation').value='';$('publicCoords').value='';$('publicName').value=''};reader.readAsDataURL(file);
+};
+render();
+</script>
+</body></html>
